@@ -227,7 +227,7 @@ static bool earlier_wakeup(const struct list_elem *new_elem, const struct list_e
 	return new_wtick < item_wtick;
 }
 
-static bool higher_priority(const struct list_elem *new_elem, const struct list_elem *item, void *aux)
+bool higher_priority(const struct list_elem *new_elem, const struct list_elem *item, void *aux)
 {
 	int64_t new_priority = list_entry(new_elem, struct thread, elem)->priority;
 	int64_t item_priority = list_entry(item, struct thread, elem)->priority;
@@ -390,6 +390,7 @@ void thread_set_priority(int new_priority)
 {
 	thread_current()->priority = new_priority;
 	// 새로 변경 후 변경된 우선순위가 최우선이 아닌지 확인.
+	enum intr_level old = intr_disable();
 	if (!list_empty(&ready_list))
 	{
 		struct thread *ready_front = list_entry(list_front(&ready_list), struct thread, elem);
@@ -398,6 +399,7 @@ void thread_set_priority(int new_priority)
 			thread_yield();
 		}
 	}
+	intr_set_level(old);
 }
 
 /* Returns the current thread's priority. */
