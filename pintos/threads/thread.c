@@ -50,8 +50,9 @@ static long long kernel_ticks; /* # of timer ticks in kernel threads. */
 static long long user_ticks;   /* # of timer ticks in user programs. */
 
 /* Scheduling. */
-#define TIME_SLICE 4		  /* # of timer ticks to give each thread. */
-static unsigned thread_ticks; /* # of timer ticks since last yield. */
+#define TIME_SLICE 4				 /* # of timer ticks to give each thread. */
+static unsigned thread_ticks;		 /* # of timer ticks since last yield. */
+static bool schedule_enable = false; /* thread_start가 끝나 스케줄이 가능해짐 */
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -120,6 +121,8 @@ void thread_init(void)
 	initial_thread->tid = allocate_tid();
 }
 
+// static bool ; /* Should we yield on interrupt return? */
+
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
 void thread_start(void)
@@ -134,6 +137,9 @@ void thread_start(void)
 
 	/* Wait for the idle thread to initialize idle_thread. */
 	sema_down(&idle_started);
+
+	// idle complete: sema_up() 이후
+	schedule_enable = true;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -213,6 +219,21 @@ tid_t thread_create(const char *name, int priority,
 	return tid;
 }
 
+// 중단조건
+static bool earlier_wakeup(const struct list_elem *new_elem, const struct list_elem *item, void *aux)
+{
+	int64_t new_wtick = list_entry(new_elem, struct thread, elem)->wakeup_tick;
+	int64_t item_wtick = list_entry(item, struct thread, elem)->wakeup_tick;
+	return new_wtick < item_wtick;
+}
+
+static bool higher_priority(const struct list_elem *new_elem, const struct list_elem *item, void *aux)
+{
+	int64_t new_priority = list_entry(new_elem, struct thread, elem)->priority;
+	int64_t item_priority = list_entry(item, struct thread, elem)->priority;
+	return new_priority > item_priority;
+}
+
 void awake_sleep_threads(int64_t now)
 {
 	while (!list_empty(&sleep_list))
@@ -222,14 +243,6 @@ void awake_sleep_threads(int64_t now)
 			break;
 		thread_awake(ft);
 	}
-}
-
-// 중단조건
-static bool earlier_wakeup(const struct list_elem *new_elem, const struct list_elem *item, void *aux)
-{
-	int64_t new_wtick = list_entry(new_elem, struct thread, elem)->wakeup_tick;
-	int64_t item_wtick = list_entry(item, struct thread, elem)->wakeup_tick;
-	return new_wtick < item_wtick;
 }
 
 // 현재 쓰레드 잠듦상태로
@@ -278,6 +291,17 @@ void thread_block(void)
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
+
+void thread_preemption()
+{
+	ASSERT(schedule_enable);
+
+	if (intr_context())
+		intr_yield_on_return();
+	else
+		thread_yield();
+}
+
 void thread_unblock(struct thread *t)
 {
 	enum intr_level old_level;
@@ -286,8 +310,13 @@ void thread_unblock(struct thread *t)
 
 	old_level = intr_disable();
 	ASSERT(t->status == THREAD_BLOCKED);
-	list_push_back(&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, higher_priority, NULL);
 	t->status = THREAD_READY;
+	// 즉시선점
+	if (schedule_enable && t != idle_thread && t->priority > thread_get_priority())
+	{
+		thread_preemption();
+	}
 	intr_set_level(old_level);
 }
 
@@ -351,7 +380,7 @@ void thread_yield(void)
 
 	old_level = intr_disable();
 	if (curr != idle_thread)
-		list_push_back(&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, higher_priority, NULL);
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
@@ -360,11 +389,21 @@ void thread_yield(void)
 void thread_set_priority(int new_priority)
 {
 	thread_current()->priority = new_priority;
+	// 새로 변경 후 변경된 우선순위가 최우선이 아닌지 확인.
+	if (!list_empty(&ready_list))
+	{
+		struct thread *ready_front = list_entry(list_front(&ready_list), struct thread, elem);
+		if (new_priority < ready_front->priority)
+		{
+			thread_yield();
+		}
+	}
 }
 
 /* Returns the current thread's priority. */
 int thread_get_priority(void)
 {
+	// 기부 받은 우선순위가 있다면?
 	return thread_current()->priority;
 }
 
