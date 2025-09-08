@@ -386,21 +386,49 @@ void thread_yield(void)
 	intr_set_level(old_level);
 }
 
+// donation to holder
 void donation(struct thread *holder, struct lock *lock)
 {
-	// struct donation_entry entry;
-	// entry.lock = lock;
-	// entry.donor = thread_current();
-	// list_push_back(&holder->donations, &entry.elem);
+	struct thread *cur = thread_current();
+	list_push_back(&holder->donators, &cur->donation_elem);
+	holder->priority = MAX(holder->priority, cur->priority);
+}
 
-	//--
-	holder->priority = MAX(holder->priority, thread_current()->priority);
+static bool is_max(const struct list_elem *max, const struct list_elem *v, void *aux)
+{
+	int64_t maxp = list_entry(max, struct thread, donation_elem)->priority;
+	int64_t p = list_entry(v, struct thread, donation_elem)->priority;
+	return p > maxp;
+}
+
+static void thread_update_priority()
+{
+	// 도네이션 리스트 & base_priority 중 가장 큰 priority 설정
+	enum intr_level old = intr_disable();
+
+	struct thread *cur = thread_current();
+	int64_t donation_max = list_entry(list_max(&cur->donators, is_max, NULL), struct thread, donation_elem)->priority;
+	cur->priority = MAX(cur->base_priority, donation_max);
+
+	intr_set_level(old);
 }
 
 void thread_restore_by_lock(struct lock *lock)
 {
 	struct thread *thread = thread_current();
+	enum intr_level old = intr_disable();
 	thread->priority = thread->base_priority;
+
+	// 도네이션 리스트 정리 -> lock 같으면 제거
+	// struct item_elem *cur = list_front(&thread->donators);
+	// while (cur != NULL)
+	// {
+	// 	struct thread *cur_thr = list_entry(cur, struct thread, donation_elem);
+	// 	cur = cur->next;
+	// }
+
+	intr_set_level(old);
+	thread_update_priority();
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -523,7 +551,7 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->base_priority = priority;
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
-	list_init(&t->donations);
+	list_init(&t->donators);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

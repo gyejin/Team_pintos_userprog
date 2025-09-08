@@ -189,12 +189,15 @@ void lock_acquire(struct lock *lock)
 	ASSERT(!intr_context());
 	ASSERT(!lock_held_by_current_thread(lock));
 
+	struct thread *cur = thread_current();
 	if (lock->holder)
 	{
+		cur->wating_lock = lock;
 		donation(lock->holder, lock);
 	}
 	sema_down(&lock->semaphore);
-	lock->holder = thread_current();
+	cur->wating_lock = NULL;
+	lock->holder = cur;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

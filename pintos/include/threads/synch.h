@@ -24,13 +24,6 @@ struct lock
 	struct semaphore semaphore; /* Binary semaphore controlling access. */
 };
 
-struct donation_entry
-{
-	struct lock *lock;
-	struct thread *donor;
-	struct list_elem elem;
-};
-
 void lock_init(struct lock *);
 void lock_acquire(struct lock *);
 bool lock_try_acquire(struct lock *);

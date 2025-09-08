@@ -93,10 +93,12 @@ struct thread
 	char name[16];			   /* Name (for debugging purposes). */
 	int base_priority;		   /* thread base priority. */
 	int priority;			   /* Priority. */
-	struct list donations;	   /* donation list. */
+	struct list donators;	   /* donation list. */
+	struct lock *wating_lock;  /* wating lock. */
 	int64_t wakeup_tick;	   /* ticks of wakeup. */
 	/* Shared between thread.c and synch.c. */
-	struct list_elem elem; /* List element. */
+	struct list_elem elem;			/* List element. */
+	struct list_elem donation_elem; /* Donation list element. */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -148,7 +150,7 @@ int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
 void donation(struct thread *thr, struct lock *l);
-void thread_restore_by_lock();
+void thread_restore_by_lock(struct lock *lock);
 
 void do_iret(struct intr_frame *tf);
 
