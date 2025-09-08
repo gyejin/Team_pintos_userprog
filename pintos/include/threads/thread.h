@@ -91,7 +91,9 @@ struct thread
 	tid_t tid;				   /* Thread identifier. */
 	enum thread_status status; /* Thread state. */
 	char name[16];			   /* Name (for debugging purposes). */
+	int base_priority;		   /* thread base priority. */
 	int priority;			   /* Priority. */
+	struct list donations;	   /* donation list. */
 	int64_t wakeup_tick;	   /* ticks of wakeup. */
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem; /* List element. */
@@ -144,6 +146,9 @@ int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
+
+void donation(struct thread *thr, struct lock *l);
+void thread_restore_by_lock();
 
 void do_iret(struct intr_frame *tf);
 

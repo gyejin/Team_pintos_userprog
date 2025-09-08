@@ -16,6 +16,7 @@
 #include "userprog/process.h"
 #endif
 
+#define MAX(a, b) ((a) > (b) ? a : b)
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -385,16 +386,37 @@ void thread_yield(void)
 	intr_set_level(old_level);
 }
 
+void donation(struct thread *holder, struct lock *lock)
+{
+	// struct donation_entry entry;
+	// entry.lock = lock;
+	// entry.donor = thread_current();
+	// list_push_back(&holder->donations, &entry.elem);
+
+	//--
+	holder->priority = MAX(holder->priority, thread_current()->priority);
+}
+
+void thread_restore_by_lock(struct lock *lock)
+{
+	struct thread *thread = thread_current();
+	thread->priority = thread->base_priority;
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority)
 {
-	thread_current()->priority = new_priority;
+	struct thread *thr = thread_current();
+	thr->base_priority = new_priority;
+	thr->priority = new_priority;
+	// thr->priority = MAX(thr->base_priority);
+
 	// 새로 변경 후 변경된 우선순위가 최우선이 아닌지 확인.
 	enum intr_level old = intr_disable();
 	if (!list_empty(&ready_list))
 	{
 		struct thread *ready_front = list_entry(list_front(&ready_list), struct thread, elem);
-		if (new_priority < ready_front->priority)
+		if (thr->priority < ready_front->priority)
 		{
 			thread_yield();
 		}
@@ -405,7 +427,6 @@ void thread_set_priority(int new_priority)
 /* Returns the current thread's priority. */
 int thread_get_priority(void)
 {
-	// 기부 받은 우선순위가 있다면?
 	return thread_current()->priority;
 }
 
@@ -499,8 +520,10 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->status = THREAD_BLOCKED;
 	strlcpy(t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t)t + PGSIZE - sizeof(void *);
+	t->base_priority = priority;
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	list_init(&t->donations);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

@@ -189,6 +189,10 @@ void lock_acquire(struct lock *lock)
 	ASSERT(!intr_context());
 	ASSERT(!lock_held_by_current_thread(lock));
 
+	if (lock->holder)
+	{
+		donation(lock->holder, lock);
+	}
 	sema_down(&lock->semaphore);
 	lock->holder = thread_current();
 }
@@ -222,8 +226,8 @@ void lock_release(struct lock *lock)
 {
 	ASSERT(lock != NULL);
 	ASSERT(lock_held_by_current_thread(lock));
-
 	lock->holder = NULL;
+	thread_restore_by_lock(lock); // lock에 대한 도네이션 원복
 	sema_up(&lock->semaphore);
 }
 
@@ -242,6 +246,7 @@ struct semaphore_elem
 {
 	struct list_elem elem;		/* List element. */
 	struct semaphore semaphore; /* This semaphore. */
+	int64_t priority;
 };
 
 /* Initializes condition variable COND.  A condition variable
@@ -277,14 +282,15 @@ void cond_init(struct condition *cond)
 
 static bool higher_sema_priority(const struct list_elem *ne, const struct list_elem *item, void *aux)
 {
-	struct semaphore sema = list_entry(item, struct semaphore_elem, elem)->semaphore;
-	int64_t p = list_entry(list_front(&sema.waiters), struct thread, elem)->priority;
-	return thread_current()->priority > p;
+	int64_t ne_p = list_entry(ne, struct semaphore_elem, elem)->priority;
+	int64_t item_p = list_entry(item, struct semaphore_elem, elem)->priority;
+	return ne_p > item_p;
 }
 
 void cond_wait(struct condition *cond, struct lock *lock)
 {
 	struct semaphore_elem waiter;
+	waiter.priority = thread_get_priority();
 
 	ASSERT(cond != NULL);
 	ASSERT(lock != NULL);
