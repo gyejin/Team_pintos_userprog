@@ -460,13 +460,15 @@ void thread_set_priority(int new_priority)
 {
 	struct thread *cur = thread_current();
 
-	// 새로 변경 후 변경된 우선순위가 최우선이 아닌지 확인.
+	// priority set
 	enum intr_level old = intr_disable();
 	cur->base_priority = new_priority;
+
 	thread_refresh_priority(cur);
 
 	if (!list_empty(&ready_list))
 	{
+		// 새로 변경 후 변경된 우선순위가 최우선이 아닌지 확인.
 		struct thread *ready_front = list_entry(list_front(&ready_list), struct thread, elem);
 		if (cur->priority < ready_front->priority)
 		{
