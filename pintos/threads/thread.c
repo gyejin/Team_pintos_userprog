@@ -134,14 +134,13 @@ void thread_start(void)
 	sema_init(&idle_started, 0);
 	thread_create("idle", PRI_MIN, idle, &idle_started);
 
-	/* Start preemptive thread scheduling. */
-	intr_enable();
-
 	/* Wait for the idle thread to initialize idle_thread. */
 	sema_down(&idle_started);
 
-	// idle complete: sema_up() 이후
-	schedule_enable = true;
+	/* Start preemptive thread scheduling. */
+	intr_enable(); // idle 설정 완료 후 인터럽(선점) 허용
+
+	// schedule_enable = true; // sema 풀린 후 플래그 설정 (구버전)
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -236,6 +235,7 @@ bool higher_priority(const struct list_elem *new_elem, const struct list_elem *i
 	return new_priority > item_priority;
 }
 
+// 깨워야할 쓰레드 깨우기
 void awake_sleep_threads(int64_t now)
 {
 	while (!list_empty(&sleep_list))
@@ -247,7 +247,7 @@ void awake_sleep_threads(int64_t now)
 	}
 }
 
-// 현재 쓰레드 잠듦상태로
+// thread sleep (insert sleep_list + thread_block)
 void thread_sleep()
 {
 	struct thread *t = thread_current();
@@ -263,6 +263,7 @@ void thread_sleep()
 	intr_set_level(old);
 }
 
+// awake = remove to sleep_list + unblock
 void thread_awake(struct thread *t)
 {
 	ASSERT(t->status == THREAD_BLOCKED);
@@ -296,7 +297,7 @@ void thread_block(void)
 
 void thread_preemption()
 {
-	ASSERT(schedule_enable);
+	// ASSERT(schedule_enable);
 
 	if (intr_context())
 		intr_yield_on_return();
@@ -309,16 +310,18 @@ void thread_unblock(struct thread *t)
 	enum intr_level old_level;
 
 	ASSERT(is_thread(t));
+	ASSERT(t->status == THREAD_BLOCKED);
 
 	old_level = intr_disable();
-	ASSERT(t->status == THREAD_BLOCKED);
 	list_insert_ordered(&ready_list, &t->elem, higher_priority, NULL);
 	t->status = THREAD_READY;
 	// 즉시선점
-	if (schedule_enable && t != idle_thread && t->priority > thread_get_priority())
+	// if (schedule_enable &&
+	if (t != idle_thread && t->priority > thread_get_priority())
 	{
 		thread_preemption();
 	}
+
 	intr_set_level(old_level);
 }
 
