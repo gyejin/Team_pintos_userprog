@@ -94,7 +94,7 @@ struct thread
 	int base_priority;		   /* thread base priority. */
 	int priority;			   /* Priority. */
 	struct list donators;	   /* donation list. */
-	struct lock *wating_lock;  /* wating lock. */
+	struct lock *waiting_lock;  /* wating lock. */
 	int64_t wakeup_tick;	   /* ticks of wakeup. */
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;			/* List element. */
@@ -149,7 +149,7 @@ void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
-void donation(struct thread *thr, struct lock *l);
+void donate(struct thread *thr, struct lock *l);
 void thread_restore_by_lock(struct lock *lock);
 
 void do_iret(struct intr_frame *tf);

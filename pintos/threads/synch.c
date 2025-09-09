@@ -192,11 +192,11 @@ void lock_acquire(struct lock *lock)
 	struct thread *cur = thread_current();
 	if (lock->holder)
 	{
-		cur->wating_lock = lock;
-		donation(lock->holder, lock);
+		cur->waiting_lock = lock;
+		donate(lock->holder, lock);
 	}
 	sema_down(&lock->semaphore);
-	cur->wating_lock = NULL;
+	cur->waiting_lock = NULL;
 	lock->holder = cur;
 }
 
