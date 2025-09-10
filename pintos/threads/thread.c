@@ -68,7 +68,7 @@ static void init_thread(struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
-static void thread_refresh_priority(struct thread *t);
+static void thread_refresh_priority(struct thread *t, bool in_chain);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -402,14 +402,14 @@ static void donate_chain(struct thread *thr)
 	struct lock *l = thr->waiting_lock;
 	while (l && l->holder)
 	{
-		thread_refresh_priority(l->holder);
+		thread_refresh_priority(l->holder, true);
 		l = l->holder->waiting_lock;
 	}
 }
 
-static void thread_refresh_priority(struct thread *thr)
+static void thread_refresh_priority(struct thread *thr, bool in_donate)
 {
-	// 도네이션 리스트 & base_priority 중 가장 큰 priority 설정
+	// 도네이션 리스트 & base_priority 중~ 가장 큰 priority 설정
 	int64_t donation_max = PRI_MIN;
 
 	enum intr_level old = intr_disable();
@@ -422,7 +422,8 @@ static void thread_refresh_priority(struct thread *thr)
 	thr->priority = MAX(thr->base_priority, donation_max);
 	intr_set_level(old);
 
-	donate_chain(thr);
+	if (!in_donate)
+		donate_chain(thr);
 }
 
 // donate to holder
@@ -433,7 +434,7 @@ void donate(struct thread *holder, struct lock *lock)
 	enum intr_level old = intr_disable();
 	list_push_back(&holder->donators, &cur->donation_elem);
 	intr_set_level(old);
-	thread_refresh_priority(holder);
+	thread_refresh_priority(holder, false);
 }
 
 void thread_restore_by_lock(struct lock *lock)
@@ -455,7 +456,7 @@ void thread_restore_by_lock(struct lock *lock)
 	}
 	intr_set_level(old);
 
-	thread_refresh_priority(thread);
+	thread_refresh_priority(thread, false);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -467,7 +468,7 @@ void thread_set_priority(int new_priority)
 	enum intr_level old = intr_disable();
 	cur->base_priority = new_priority;
 
-	thread_refresh_priority(cur);
+	thread_refresh_priority(cur, false);
 
 	if (!list_empty(&ready_list))
 	{
