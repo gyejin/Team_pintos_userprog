@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -103,6 +104,13 @@ struct thread
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4; /* Page map level 4 */
+	
+	/* exit와 wait 동기화에 필요한 멤버 변수 */
+	int exit_status;			/* 자식 프로세스가 exit호출했을때 status값 저장 */
+	struct semaphore wait_sema;	/* 부모 프로세스가 wait 콜에서 자식이 종료될때까지 기다림, 자식 exit할때 세마 업해서 잠든 부모 깨움*/
+	struct thread *parent;		/* 현재 스레드의 부모 스레드를 가리키는 포인터, 자식 종료->누구의 wait_sema를 깨울지 */
+	struct list child_list;		/* 부모 스레드의 모든 자식 저장, wait 시 리스트 검색하여 자식 찾음 */
+	struct list_elem child_elem;/* 현재(자식) 스레드를 부모의 child_list에 넣기 위한 연결고리 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */

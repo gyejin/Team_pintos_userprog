@@ -19,6 +19,7 @@
 #define PGBITS  12                         /* Number of offset bits. */
 #define PGSIZE  (1 << PGBITS)              /* Bytes in a page. */
 #define PGMASK  BITMASK(PGSHIFT, PGBITS)   /* Page offset bits (0:12). */
+#define MAX_ARGC 32							/* argv_tokens의 크기를 페이지 기반 크기로 개선(유동적) */
 
 /* Offset within a page. */
 #define pg_ofs(va) ((uint64_t) (va) & PGMASK)
@@ -38,6 +39,7 @@
 #define USER_STACK 0x47480000
 
 /* Returns true if VADDR is a user virtual address. */
+//커널 침범하지 않았는지 user공간인지 확인
 #define is_user_vaddr(vaddr) (!is_kernel_vaddr((vaddr)))
 
 /* Returns true if VADDR is a kernel virtual address. */
