@@ -206,7 +206,7 @@ tid_t thread_create(const char *name, int priority,
 #ifdef USERPROG
     /* 부모-자식 연결 — thread_unblock() 하기 전에 해주기(경쟁 방지) */
     t->parent = thread_current();
-    list_push_back(&thread_current()->child_list, &t->child_elem);		//child_list에 자식요소 push
+    list_push_back(&thread_current()->child_list, &t->child_elem);
 
     /* wait_sema는 init_thread에서 이미 초기화됨 */
 #endif
@@ -590,12 +590,20 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->magic = THREAD_MAGIC;
 	list_init(&t->donators);
 
+
 #ifdef USERPROG
     /* userprog 관련 필드 초기화 — 안 하면 child_list 등 미초기화로 엉킴 */
-	sema_init(&t->wait_sema, 0); /* 부모가 wait할 때 사용 */
+    sema_init(&t->wait_sema, 0); /* 부모가 wait할 때 사용 */
     t->exit_status = 0;
+    t->exit_called = false;  /* 이미 exit 됐는지? 변수 초기화 */
     t->parent = NULL;
     list_init(&t->child_list);
+
+    /* FD 테이블 초기화 */
+    for (int i = 0; i < FD_MAX; i++) {
+        t->fd_table[i] = NULL;
+    }
+    t->next_fd = 2; //0(stdin), 1(stdout), [2(stderr) KAIST Pintos는 2안씀]은 예약되어 있으니까 3번부터 쓰기!
 
 #endif
     t->magic = THREAD_MAGIC;

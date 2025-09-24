@@ -60,13 +60,17 @@ filesys_done (void) {
 bool
 filesys_create (const char *name, off_t initial_size) {
 	disk_sector_t inode_sector = 0;
+	/* 루트 디렉토리 열기 */
 	struct dir *dir = dir_open_root ();
+	/* 파일 메타데이터(inode)를 디스크에 저장할 빈 섹터를 찾음 */
 	bool success = (dir != NULL
 			&& free_map_allocate (1, &inode_sector)
-			&& inode_create (inode_sector, initial_size)
-			&& dir_add (dir, name, inode_sector));
+			&& inode_create (inode_sector, initial_size)	//inode 생성
+			&& dir_add (dir, name, inode_sector));		//디렉토리에 파일이름과 inode위치 추가
+	/* 실패 시 할당했던 디스크 섹터 다시 해제 */
 	if (!success && inode_sector != 0)
 		free_map_release (inode_sector, 1);
+	/* 루트 디렉토리 닫음 */
 	dir_close (dir);
 
 	return success;
@@ -79,11 +83,13 @@ filesys_create (const char *name, off_t initial_size) {
  * or if an internal memory allocation fails. */
 struct file *
 filesys_open (const char *name) {
+	/* 루트 디렉토리 열기 */
 	struct dir *dir = dir_open_root ();
 	struct inode *inode = NULL;
 
+	/* 파일 검색, 인자로 받은 name과 일치하는 파일 항목 찾음 */
 	if (dir != NULL)
-		dir_lookup (dir, name, &inode);
+		dir_lookup (dir, name, &inode);		//찾으면 inode 포인터 변수에 파일 메타데이터가 담긴 주소 저장		
 	dir_close (dir);
 
 	return file_open (inode);

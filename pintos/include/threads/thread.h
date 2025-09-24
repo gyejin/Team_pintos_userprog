@@ -29,6 +29,9 @@ typedef int tid_t;
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63	   /* Highest priority. */
 
+#define FD_MAX 128 		//최대 파일 디스크립터 개수
+
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -101,9 +104,16 @@ struct thread
 	struct list_elem elem;			/* List element. */
 	struct list_elem donation_elem; /* Donation list element. */
 
+	struct file *fd_table[FD_MAX]; 		//파일 객체 포인터 배열
+	int next_fd; 		//다음에 할당할 fd 번호
+	struct file *running_executable;	//현재 실행 중인 파일 객체
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4; /* Page map level 4 */
+
+	struct semaphore fork_sema;		/* 자식 프로세스가 fork를 완료할때까지 부모가 기다리기 위한 세마포어 */
+	struct intr_frame parent_if;	/* 부모 레지스터 정보를 자식에게 전달하기 위한 프레임 */
 	
 	/* exit와 wait 동기화에 필요한 멤버 변수 */
 	int exit_status;			/* 자식 프로세스가 exit호출했을때 status값 저장 */
@@ -111,6 +121,7 @@ struct thread
 	struct thread *parent;		/* 현재 스레드의 부모 스레드를 가리키는 포인터, 자식 종료->누구의 wait_sema를 깨울지 */
 	struct list child_list;		/* 부모 스레드의 모든 자식 저장, wait 시 리스트 검색하여 자식 찾음 */
 	struct list_elem child_elem;/* 현재(자식) 스레드를 부모의 child_list에 넣기 위한 연결고리 */
+	bool exit_called;           /* sys_exit() 등에서 이미 exit 처리가 되었는지 표시 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
